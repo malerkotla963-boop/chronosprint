@@ -1,0 +1,12 @@
+{
+  "appId": "com.chronosprint.app",
+  "appName": "ChronoSprint",
+  "webDir": "www",
+  "backgroundColor": "#000000",
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "native",
+      "style": "DARK"
+    }
+  }
+}

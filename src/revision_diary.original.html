@@ -1,0 +1,2053 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChronoSprint Pro - Spaced Repetition Calendar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            blackpure: '#000000',
+            darksurface: '#08080c',
+            darkpanel: '#0f0f15',
+            darkcard: '#15151e',
+            darkborder: '#232330',
+            darkhover: '#1e1e2b'
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+    body {
+      background-color: #000000;
+      color: #f1f5f9;
+      font-family: 'Inter', system-ui, sans-serif;
+      overflow-x: hidden;
+    }
+
+    .font-mono-num {
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #08080c;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #232330;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #3b3b4f;
+    }
+
+    .calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
+
+    .pulse-overdue {
+      box-shadow: 0 0 10px rgba(244, 63, 94, 0.4);
+      border-color: rgba(244, 63, 94, 0.7) !important;
+    }
+    .pulse-today {
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+      border-color: rgba(245, 158, 11, 0.7) !important;
+    }
+
+    @media print {
+      body * {
+        visibility: hidden !important;
+      }
+      #printContainer, #printContainer * {
+        visibility: visible !important;
+      }
+      #printContainer {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: #ffffff !important;
+        color: #000000 !important;
+        padding: 20mm;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-blackpure text-slate-100 flex flex-col selection:bg-indigo-500/30 selection:text-indigo-200">
+
+  <!-- TOP APP HEADER -->
+  <header class="border-b border-darkborder bg-darksurface/90 backdrop-blur sticky top-0 z-30 px-3 sm:px-6 lg:px-8 py-3">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+      
+      <!-- Brand & Title -->
+      <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 via-indigo-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-indigo-600/30">
+            <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <h1 class="text-base font-bold tracking-tight text-white">ChronoSprint</h1>
+              <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/30">PRO</span>
+            </div>
+            <p class="text-[11px] text-slate-400">Spaced Repetition Scheduler (+2, +4, +8, +16, +32d)</p>
+          </div>
+        </div>
+
+        <button onclick="openShortcutsModal()" class="md:hidden text-slate-400 p-1.5 rounded-lg border border-darkborder hover:text-white" title="Keyboard Shortcuts">
+          ⌨️
+        </button>
+      </div>
+
+      <!-- Center navigation tab pills -->
+      <div class="bg-darkpanel border border-darkborder p-1 rounded-xl flex items-center text-xs font-semibold w-full md:w-auto justify-center">
+        <button id="navTabCalendar" onclick="switchView('calendar')" class="flex-1 md:flex-none px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white shadow-sm transition">
+          Calendar
+        </button>
+        <button id="navTabAgenda" onclick="switchView('agenda')" class="flex-1 md:flex-none px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-white transition">
+          Today's Focus
+        </button>
+        <button id="navTabTopics" onclick="switchView('topics')" class="flex-1 md:flex-none px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-white transition">
+          All Topics
+        </button>
+      </div>
+
+      <!-- Action buttons -->
+      <div class="flex items-center gap-2 w-full md:w-auto justify-end flex-wrap">
+        <!-- Manage Subjects Button -->
+        <button onclick="openManageSubjectsModal()" class="px-2.5 py-1.5 rounded-xl bg-darkpanel hover:bg-darkhover border border-darkborder text-slate-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition" title="Manage Subjects (Add/Delete)">
+          <span>🏷️</span>
+          <span>Subjects</span>
+        </button>
+
+        <!-- Printable Daily Sheet -->
+        <button onclick="printDailyAgendaSheet()" class="p-2 rounded-xl bg-darkpanel hover:bg-darkhover border border-darkborder text-slate-300 hover:text-white transition" title="Print Today's Revision Sheet">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+        </button>
+
+        <!-- Backup/Restore JSON -->
+        <button onclick="openBackupModal()" class="p-2 rounded-xl bg-darkpanel hover:bg-darkhover border border-darkborder text-slate-300 hover:text-white transition" title="Backup & Restore JSON">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        </button>
+
+        <!-- Log Topic Button -->
+        <button onclick="openNewTopicModal()" class="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1.5 shadow-lg shadow-emerald-600/20 active:scale-95 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          <span>Log Topic (N)</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-8 space-y-5">
+
+    <!-- METRICS & RETENTION DASHBOARD STATS -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-4">
+      <!-- Streak -->
+      <div class="bg-darkpanel border border-darkborder rounded-2xl p-3.5 flex flex-col justify-between relative overflow-hidden">
+        <div class="flex items-center justify-between text-xs text-amber-400 font-medium">
+          <span>Active Streak</span>
+          <span>🔥</span>
+        </div>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span id="metricStreak" class="text-2xl font-black text-amber-300 font-mono-num">0</span>
+          <span class="text-xs text-slate-500 font-medium">days</span>
+        </div>
+      </div>
+
+      <!-- Adherence Rate -->
+      <div class="bg-darkpanel border border-darkborder rounded-2xl p-3.5 flex flex-col justify-between relative overflow-hidden">
+        <div class="flex items-center justify-between text-xs text-emerald-400 font-medium">
+          <span>Adherence Rate</span>
+          <span>📈</span>
+        </div>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span id="metricAdherence" class="text-2xl font-black text-emerald-400 font-mono-num">100%</span>
+          <span class="text-xs text-slate-500 font-medium">on time</span>
+        </div>
+      </div>
+
+      <!-- Revisions Due Today -->
+      <div class="bg-darkpanel border border-darkborder rounded-2xl p-3.5 flex flex-col justify-between relative overflow-hidden">
+        <div class="flex items-center justify-between text-xs text-amber-400 font-medium">
+          <span>Due Today</span>
+          <span>⏰</span>
+        </div>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span id="metricDueToday" class="text-2xl font-black text-white font-mono-num">0</span>
+          <span class="text-xs text-slate-500 font-medium">revisions</span>
+        </div>
+      </div>
+
+      <!-- Overdue Decay Alert -->
+      <div class="bg-darkpanel border border-darkborder rounded-2xl p-3.5 flex flex-col justify-between relative overflow-hidden">
+        <div class="flex items-center justify-between text-xs text-rose-400 font-medium">
+          <span>Overdue (Decay Risk)</span>
+          <span>⚠️</span>
+        </div>
+        <div class="mt-1 flex items-baseline gap-1.5">
+          <span id="metricOverdue" class="text-2xl font-black text-rose-400 font-mono-num">0</span>
+          <span class="text-xs text-slate-500 font-medium">pending</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SUBJECT & RETENTION LEGEND FILTER BAR -->
+    <div class="bg-darkpanel border border-darkborder rounded-2xl p-3 sm:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 text-xs">
+      <!-- Subject Filter Pills -->
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0" id="subjectFilterContainer">
+        <span class="text-slate-400 font-semibold mr-1 flex items-center gap-1">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+          Filter:
+        </span>
+        <button onclick="setSubjectFilter('ALL')" id="filterBtnAll" class="px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-medium">
+          All Subjects
+        </button>
+        <!-- Injected dynamically -->
+      </div>
+
+      <!-- Retention Decay Status Legend -->
+      <div class="flex items-center gap-3 text-[11px] text-slate-400 flex-wrap">
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Overdue</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Due Today</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> Upcoming</span>
+        <span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Mastered</span>
+      </div>
+    </div>
+
+    <!-- VIEW 1: FULL MONTH CALENDAR VIEW -->
+    <section id="viewCalendar" class="space-y-3">
+      <!-- Calendar Controls -->
+      <div class="bg-darkpanel border border-darkborder rounded-2xl p-3 sm:p-4 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <h2 id="calendarTitleMonthYear" class="text-base sm:text-lg font-bold text-white tracking-tight min-w-[190px]">September 2026</h2>
+          <button onclick="jumpToToday()" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-darkcard hover:bg-slate-800 text-indigo-300 border border-indigo-500/30 transition active:scale-95" title="Jump to Current Date (T)">
+            Today (T)
+          </button>
+        </div>
+
+        <div class="flex items-center gap-1.5">
+          <button onclick="shiftMonth(-1)" class="p-2 rounded-xl bg-darkcard hover:bg-darkhover border border-darkborder text-slate-300 hover:text-white transition" title="Previous Month (←)">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <button onclick="shiftMonth(1)" class="p-2 rounded-xl bg-darkcard hover:bg-darkhover border border-darkborder text-slate-300 hover:text-white transition" title="Next Month (→)">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Month Grid -->
+      <div class="bg-darkpanel border border-darkborder rounded-2xl overflow-hidden shadow-2xl">
+        <div class="grid grid-cols-7 border-b border-darkborder bg-blackpure/60 text-center text-[11px] font-bold text-slate-400 py-2.5 tracking-wider">
+          <div>MON</div>
+          <div>TUE</div>
+          <div>WED</div>
+          <div>THU</div>
+          <div>FRI</div>
+          <div>SAT</div>
+          <div class="text-rose-400/90">SUN</div>
+        </div>
+        <div id="calendarGrid" class="calendar-grid bg-darkborder gap-[1px]"></div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: TODAY'S FOCUS & AGENDA VIEW -->
+    <section id="viewAgenda" class="hidden space-y-4">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        
+        <!-- Left: Due Today & Studied Today -->
+        <div class="lg:col-span-2 space-y-4">
+          <div class="bg-darkpanel border border-darkborder rounded-2xl p-4 sm:p-5 space-y-4">
+            <div class="flex items-center justify-between border-b border-darkborder pb-3">
+              <div>
+                <h3 class="text-base font-bold text-white flex items-center gap-2">
+                  <span>Today's Revision Queue</span>
+                  <span id="agendaDateDisplay" class="text-xs font-mono font-medium text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/30"></span>
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">Revise these checkpoints to solidify long-term retention.</p>
+              </div>
+              <button onclick="openNewTopicModal()" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/30 font-semibold transition">
+                + Log Today's Study
+              </button>
+            </div>
+
+            <!-- Queue list -->
+            <div id="agendaDueTodayList" class="space-y-3"></div>
+          </div>
+
+          <!-- Material Studied Today (Day X) -->
+          <div class="bg-darkpanel border border-darkborder rounded-2xl p-4 sm:p-5 space-y-3">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+              Original Material Covered Today (Day X)
+            </h4>
+            <div id="agendaLearnedTodayList" class="space-y-2"></div>
+          </div>
+        </div>
+
+        <!-- Right: Overdue Decay & Next 7 Days Forecast -->
+        <div class="space-y-4">
+          <div class="bg-darkpanel border border-rose-950/40 rounded-2xl p-4 sm:p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                Retention Decay Risk (Overdue)
+              </h4>
+              <span id="agendaOverdueBadge" class="text-xs font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-bold">0</span>
+            </div>
+            <div id="agendaOverdueList" class="space-y-2 max-h-[260px] overflow-y-auto pr-1"></div>
+          </div>
+
+          <div class="bg-darkpanel border border-darkborder rounded-2xl p-4 sm:p-5 space-y-3">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-300">Upcoming in Next 7 Days</h4>
+            <div id="agendaUpcomingList" class="space-y-2 max-h-[320px] overflow-y-auto pr-1"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- VIEW 3: FULL TOPICS REPOSITORY -->
+    <section id="viewTopics" class="hidden space-y-4">
+      <div class="bg-darkpanel border border-darkborder rounded-2xl p-4 sm:p-5 space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-darkborder pb-4">
+          <div>
+            <h3 class="text-base font-bold text-white">Spaced Repetition Repository</h3>
+            <p class="text-xs text-slate-400">All topics and interactive review checkpoints (+2, +4, +8, +16, +32 days)</p>
+          </div>
+          <div>
+            <input type="text" id="repoSearchInput" oninput="renderTopicsTable()" placeholder="Search title, notes, subject..." 
+                   class="bg-darkcard border border-darkborder text-slate-200 text-xs rounded-xl px-3 py-2 focus:outline-none focus:border-indigo-500 w-full sm:w-64" />
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-300 border-collapse">
+            <thead>
+              <tr class="border-b border-darkborder text-slate-400 uppercase font-semibold">
+                <th class="py-3 px-3">Date (DD/MM/YYYY)</th>
+                <th class="py-3 px-2">Subject</th>
+                <th class="py-3 px-3">Topic Title & Notes</th>
+                <th class="py-3 px-2 text-center">+2d</th>
+                <th class="py-3 px-2 text-center">+4d</th>
+                <th class="py-3 px-2 text-center">+8d</th>
+                <th class="py-3 px-2 text-center">+16d</th>
+                <th class="py-3 px-2 text-center">+32d</th>
+                <th class="py-3 px-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="repoTableBody" class="divide-y divide-darkborder"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL: MANAGE SUBJECTS (ADD / DELETE) -->
+  <div id="modalManageSubjects" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-3 sm:p-4">
+    <div class="bg-darkpanel border border-darkborder rounded-2xl w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl relative">
+      <div class="flex items-center justify-between border-b border-darkborder pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🏷️</span>
+          Manage Subjects & Colors
+        </h3>
+        <button onclick="closeManageSubjectsModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Add New Subject Form -->
+      <form onsubmit="handleAddNewSubject(event)" class="p-3.5 bg-darkcard border border-darkborder rounded-xl space-y-3">
+        <div class="text-xs font-bold text-white uppercase tracking-wider">Add New Subject</div>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input type="text" id="newSubjectName" placeholder="e.g. Physics, Anatomy, Philosophy" required
+                 class="flex-1 bg-darkpanel border border-darkborder text-white rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-indigo-500" />
+          
+          <select id="newSubjectColor" class="bg-darkpanel border border-darkborder text-white rounded-xl px-2.5 py-2 text-xs focus:outline-none focus:border-indigo-500">
+            <option value="indigo">Indigo Glow</option>
+            <option value="emerald">Emerald Green</option>
+            <option value="amber">Amber Gold</option>
+            <option value="rose">Rose Red</option>
+            <option value="cyan">Cyan Aqua</option>
+            <option value="purple">Neon Purple</option>
+          </select>
+
+          <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex-shrink-0">
+            Add Subject
+          </button>
+        </div>
+      </form>
+
+      <!-- Existing Subjects List with Delete Option -->
+      <div class="space-y-2">
+        <div class="text-xs font-bold text-slate-400 uppercase tracking-wider">Existing Subjects</div>
+        <div id="manageSubjectsList" class="space-y-2 max-h-60 overflow-y-auto pr-1"></div>
+        <p class="text-[11px] text-slate-500 italic mt-2">
+          * Note: Deleting a subject automatically moves all its existing topics to "General" so your revision history is always preserved.
+        </p>
+      </div>
+
+      <div class="flex justify-end pt-2 border-t border-darkborder">
+        <button type="button" onclick="closeManageSubjectsModal()" class="px-4 py-2 text-xs font-medium rounded-xl text-slate-300 hover:text-white bg-darkcard hover:bg-darkhover border border-darkborder">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD / LOG TOPIC -->
+  <div id="modalAddTopic" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-3 sm:p-4">
+    <div class="bg-darkpanel border border-darkborder rounded-2xl w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl relative">
+      <div class="flex items-center justify-between border-b border-darkborder pb-3">
+        <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+          Log Studied Material (Day X)
+        </h3>
+        <button onclick="closeAddTopicModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <form id="formAddTopic" onsubmit="handleSaveNewTopic(event)" class="space-y-3.5">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Study Date (Strict DD/MM/YYYY):</label>
+          <div class="grid grid-cols-3 gap-2">
+            <input type="number" id="addDay" min="1" max="31" placeholder="DD" required
+                   class="w-full bg-darkcard border border-darkborder text-white text-center rounded-xl p-2.5 text-sm font-mono-num focus:outline-none focus:border-indigo-500" />
+            <input type="number" id="addMonth" min="1" max="12" placeholder="MM" required
+                   class="w-full bg-darkcard border border-darkborder text-white text-center rounded-xl p-2.5 text-sm font-mono-num focus:outline-none focus:border-indigo-500" />
+            <input type="number" id="addYear" min="2000" max="2099" placeholder="YYYY" required
+                   class="w-full bg-darkcard border border-darkborder text-white text-center rounded-xl p-2.5 text-sm font-mono-num focus:outline-none focus:border-indigo-500" />
+          </div>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="block text-xs font-semibold text-slate-300">Subject:</label>
+            <button type="button" onclick="openManageSubjectsModal()" class="text-[11px] text-indigo-400 hover:underline">
+              + Manage Subjects
+            </button>
+          </div>
+          <select id="addSubjectSelect" class="w-full bg-darkcard border border-darkborder text-white rounded-xl p-2.5 text-xs focus:outline-none focus:border-indigo-500">
+            <!-- Dynamically populated -->
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Topic Title:</label>
+          <input type="text" id="addTitle" placeholder="e.g. Constitutional Law Articles 1-11" required
+                 class="w-full bg-darkcard border border-darkborder text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Notes / Key Concepts Covered:</label>
+          <textarea id="addNotes" rows="3" placeholder="Key takeaways, formulas, case laws, or textbook pages studied today..."
+                    class="w-full bg-darkcard border border-darkborder text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 resize-none"></textarea>
+        </div>
+
+        <div class="flex items-center justify-end gap-2.5 pt-2 border-t border-darkborder">
+          <button type="button" onclick="closeAddTopicModal()" class="px-4 py-2 text-xs font-medium rounded-xl text-slate-400 hover:text-white bg-darkcard hover:bg-darkhover border border-darkborder">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 text-xs font-bold rounded-xl text-white bg-emerald-600 hover:bg-emerald-500 shadow-lg shadow-emerald-600/20 active:scale-95 transition">
+            Save & Schedule (+2, 4, 8, 16, 32d)
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: DAY INSPECTOR -->
+  <div id="modalDayInspector" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-3 sm:p-4">
+    <div class="bg-darkpanel border border-darkborder rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <!-- Header -->
+      <div class="p-4 sm:p-5 border-b border-darkborder flex items-center justify-between bg-darksurface/60">
+        <div>
+          <span class="text-[10px] uppercase font-bold tracking-widest text-indigo-400">Day Inspector</span>
+          <h3 id="inspectorDateTitle" class="text-base sm:text-lg font-bold text-white font-mono-num">28/09/2026</h3>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="logTopicForInspectedDate()" class="px-3 py-1.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition active:scale-95">
+            + Study on This Date
+          </button>
+          <button onclick="closeDayInspectorModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="p-4 sm:p-5 overflow-y-auto flex-1 space-y-6">
+        <div>
+          <div class="flex items-center justify-between mb-2.5">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+              Scheduled Revisions Due on this Day
+            </h4>
+            <span class="text-[11px] text-slate-500">Leitner booster enabled</span>
+          </div>
+          <div id="inspectorRevisionsList" class="space-y-2.5"></div>
+        </div>
+
+        <div>
+          <h4 class="text-xs font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-1.5 mb-2.5">
+            <span class="w-2 h-2 rounded-full bg-indigo-500"></span>
+            Original Topics Studied on this Day
+          </h4>
+          <div id="inspectorOriginalsList" class="space-y-2.5"></div>
+        </div>
+      </div>
+
+      <div class="p-3 bg-darksurface border-t border-darkborder flex justify-end">
+        <button onclick="closeDayInspectorModal()" class="px-4 py-1.5 text-xs font-semibold rounded-xl text-slate-300 hover:text-white bg-darkcard hover:bg-darkhover border border-darkborder">
+          Done
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: EDIT TOPIC -->
+  <div id="modalEditTopic" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-3 sm:p-4">
+    <div class="bg-darkpanel border border-darkborder rounded-2xl w-full max-w-lg p-5 sm:p-6 space-y-4 shadow-2xl relative">
+      <div class="flex items-center justify-between border-b border-darkborder pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+          Edit Topic & Covered Material
+        </h3>
+        <button onclick="closeEditTopicModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <form id="formEditTopic" onsubmit="handleSaveEditTopic(event)" class="space-y-3.5">
+        <input type="hidden" id="editTopicId" />
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Study Date (DD/MM/YYYY):</label>
+          <div class="grid grid-cols-3 gap-2">
+            <input type="number" id="editDay" min="1" max="31" placeholder="DD" required
+                   class="w-full bg-darkcard border border-darkborder text-white text-center rounded-xl p-2.5 text-sm font-mono-num focus:outline-none focus:border-indigo-500" />
+            <input type="number" id="editMonth" min="1" max="12" placeholder="MM" required
+                   class="w-full bg-darkcard border border-darkborder text-white text-center rounded-xl p-2.5 text-sm font-mono-num focus:outline-none focus:border-indigo-500" />
+            <input type="number" id="editYear" min="2000" max="2099" placeholder="YYYY" required
+                   class="w-full bg-darkcard border border-darkborder text-white text-center rounded-xl p-2.5 text-sm font-mono-num focus:outline-none focus:border-indigo-500" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Subject:</label>
+          <select id="editSubjectSelect" class="w-full bg-darkcard border border-darkborder text-white rounded-xl p-2.5 text-xs focus:outline-none focus:border-indigo-500">
+            <!-- Dynamically populated -->
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Topic Title:</label>
+          <input type="text" id="editTitle" required
+                 class="w-full bg-darkcard border border-darkborder text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Covered Material / Notes:</label>
+          <textarea id="editNotes" rows="3"
+                    class="w-full bg-darkcard border border-darkborder text-white rounded-xl p-2.5 text-sm focus:outline-none focus:border-indigo-500 resize-none"></textarea>
+        </div>
+
+        <div class="flex items-center justify-between pt-2 border-t border-darkborder">
+          <button type="button" onclick="handleDeleteCurrentTopic()" class="px-3 py-2 text-xs font-semibold rounded-xl text-rose-400 hover:text-white hover:bg-rose-600/30 border border-rose-500/30 transition">
+            Delete Topic
+          </button>
+          <div class="flex items-center gap-2">
+            <button type="button" onclick="closeEditTopicModal()" class="px-4 py-2 text-xs font-medium rounded-xl text-slate-400 hover:text-white bg-darkcard hover:bg-darkhover border border-darkborder">
+              Cancel
+            </button>
+            <button type="submit" class="px-5 py-2 text-xs font-bold rounded-xl text-white bg-indigo-600 hover:bg-indigo-500 shadow-lg shadow-indigo-600/20 active:scale-95 transition">
+              Save Changes
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: BACKUP & RESTORE JSON -->
+  <div id="modalBackup" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-3 sm:p-4">
+    <div class="bg-darkpanel border border-darkborder rounded-2xl w-full max-w-md p-5 sm:p-6 space-y-4 shadow-2xl relative">
+      <div class="flex items-center justify-between border-b border-darkborder pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <span>💾</span>
+          Backup & Restore Repository
+        </h3>
+        <button onclick="closeBackupModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs text-slate-300">
+        <p>Safeguard your study data against cleared cache, or move all your topics and custom subjects between your laptop and phone.</p>
+
+        <div class="p-3.5 bg-darkcard border border-darkborder rounded-xl space-y-2">
+          <div class="font-semibold text-white">1. Export JSON File</div>
+          <button onclick="exportJsonFile()" class="w-full py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold transition flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Download JSON Backup
+          </button>
+        </div>
+
+        <div class="p-3.5 bg-darkcard border border-darkborder rounded-xl space-y-2">
+          <div class="font-semibold text-white">2. Restore from JSON</div>
+          <input type="file" id="importFileInput" accept=".json" class="hidden" onchange="handleImportFile(event)" />
+          <button onclick="document.getElementById('importFileInput').click()" class="w-full py-2 px-3 rounded-lg bg-darkhover hover:bg-slate-700 text-slate-200 border border-darkborder font-semibold transition flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            Upload Backup File
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: KEYBOARD SHORTCUTS -->
+  <div id="modalShortcuts" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm hidden items-center justify-center p-3 sm:p-4">
+    <div class="bg-darkpanel border border-darkborder rounded-2xl w-full max-w-sm p-5 space-y-4 shadow-2xl relative">
+      <div class="flex items-center justify-between border-b border-darkborder pb-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <span>⌨️</span> Keyboard Shortcuts
+        </h3>
+        <button onclick="closeShortcutsModal()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <div class="space-y-2 text-xs">
+        <div class="flex items-center justify-between p-2 rounded-lg bg-darkcard border border-darkborder">
+          <span class="text-slate-300">Jump to Today</span>
+          <kbd class="px-2 py-0.5 rounded bg-darksurface border border-slate-700 font-mono text-indigo-300 font-bold">T</kbd>
+        </div>
+        <div class="flex items-center justify-between p-2 rounded-lg bg-darkcard border border-darkborder">
+          <span class="text-slate-300">Log New Topic</span>
+          <kbd class="px-2 py-0.5 rounded bg-darksurface border border-slate-700 font-mono text-emerald-300 font-bold">N</kbd>
+        </div>
+        <div class="flex items-center justify-between p-2 rounded-lg bg-darkcard border border-darkborder">
+          <span class="text-slate-300">Month Navigation</span>
+          <div class="flex gap-1">
+            <kbd class="px-2 py-0.5 rounded bg-darksurface border border-slate-700 font-mono text-slate-300 font-bold">←</kbd>
+            <kbd class="px-2 py-0.5 rounded bg-darksurface border border-slate-700 font-mono text-slate-300 font-bold">→</kbd>
+          </div>
+        </div>
+        <div class="flex items-center justify-between p-2 rounded-lg bg-darkcard border border-darkborder">
+          <span class="text-slate-300">Close Open Modal</span>
+          <kbd class="px-2 py-0.5 rounded bg-darksurface border border-slate-700 font-mono text-slate-400 font-bold">Esc</kbd>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRINT CONTAINER (B&W INK-SAVING AGENDA CHECKLIST) -->
+  <div id="printContainer" class="hidden">
+    <div style="font-family: sans-serif; max-width: 800px; margin: 0 auto; color: #000;">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 16px;">
+        <h1 style="font-size: 20px; font-weight: bold; margin: 0;">DAILY REVISION AGENDA CHECKLIST</h1>
+        <div id="printDateHeading" style="font-size: 14px; font-weight: bold;"></div>
+      </div>
+
+      <div style="margin-bottom: 24px;">
+        <h3 style="font-size: 14px; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px;">
+          1. Scheduled Repetitions Due Today
+        </h3>
+        <div id="printRevisionsList"></div>
+      </div>
+
+      <div>
+        <h3 style="font-size: 14px; text-transform: uppercase; margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px;">
+          2. Topics First Studied Today
+        </h3>
+        <div id="printLearnedList"></div>
+      </div>
+
+      <div style="margin-top: 30px; font-size: 11px; color: #555; border-top: 1px dashed #aaa; padding-top: 8px;">
+        ChronoSprint Pro • Retention Interval Engine (+2, +4, +8, +16, +32 Days)
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toastNotification" class="fixed bottom-5 right-5 z-50 transform translate-y-24 opacity-0 transition-all duration-300 bg-darkcard border border-indigo-500/50 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 text-xs pointer-events-none">
+    <div id="toastIcon" class="text-emerald-400"></div>
+    <span id="toastMessage" class="font-medium"></span>
+  </div>
+
+  <script>
+    const INTERVALS = [2, 4, 8, 16, 32];
+    const STORAGE_KEY = "chronosprint_app_state_v3";
+
+    // Palette mapping for customizable subject colors
+    const COLOR_PALETTES = {
+      indigo: { bg: 'bg-indigo-950/80', text: 'text-indigo-300', border: 'border-indigo-600/50', dot: 'bg-indigo-400', label: 'Indigo' },
+      emerald: { bg: 'bg-emerald-950/80', text: 'text-emerald-300', border: 'border-emerald-600/50', dot: 'bg-emerald-400', label: 'Emerald' },
+      amber: { bg: 'bg-amber-950/80', text: 'text-amber-300', border: 'border-amber-600/50', dot: 'bg-amber-400', label: 'Amber' },
+      rose: { bg: 'bg-rose-950/80', text: 'text-rose-300', border: 'border-rose-600/50', dot: 'bg-rose-400', label: 'Rose' },
+      cyan: { bg: 'bg-cyan-950/80', text: 'text-cyan-300', border: 'border-cyan-600/50', dot: 'bg-cyan-400', label: 'Cyan' },
+      purple: { bg: 'bg-purple-950/80', text: 'text-purple-300', border: 'border-purple-600/50', dot: 'bg-purple-400', label: 'Purple' }
+    };
+
+    let appState = {
+      topics: [],
+      subjects: [
+        { id: 'sub-1', name: 'General', color: 'indigo' },
+        { id: 'sub-2', name: 'Polity', color: 'purple' },
+        { id: 'sub-3', name: 'History', color: 'amber' },
+        { id: 'sub-4', name: 'Mathematics', color: 'cyan' },
+        { id: 'sub-5', name: 'Economics', color: 'emerald' },
+        { id: 'sub-6', name: 'Science', color: 'rose' }
+      ],
+      currentCalendarDate: new Date(),
+      activeView: 'calendar',
+      activeSubjectFilter: 'ALL',
+      inspectedDateStr: null
+    };
+
+    /* =========================================================================
+       DATE UTILITIES (STRICT DD/MM/YYYY)
+       ========================================================================= */
+    function formatToDMY(dateObj) {
+      const d = String(dateObj.getUTCDate()).padStart(2, '0');
+      const m = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+      const y = dateObj.getUTCFullYear();
+      return `${d}/${m}/${y}`;
+    }
+
+    function parseDMY(dmyStr) {
+      if (!dmyStr || typeof dmyStr !== 'string') return new Date();
+      const parts = dmyStr.trim().split(/[\/\-\.]/);
+      if (parts.length !== 3) return new Date();
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parseInt(parts[2], 10);
+      return new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+    }
+
+    function addDaysToDMY(dmyStr, numDays) {
+      const d = parseDMY(dmyStr);
+      d.setUTCDate(d.getUTCDate() + numDays);
+      return formatToDMY(d);
+    }
+
+    function compareDMY(d1, d2) {
+      const t1 = parseDMY(d1).getTime();
+      const t2 = parseDMY(d2).getTime();
+      if (t1 < t2) return -1;
+      if (t1 > t2) return 1;
+      return 0;
+    }
+
+    function getTodayDMY() {
+      const now = new Date();
+      const d = String(now.getDate()).padStart(2, '0');
+      const m = String(now.getMonth() + 1).padStart(2, '0');
+      const y = now.getFullYear();
+      return `${d}/${m}/${y}`;
+    }
+
+    /* =========================================================================
+       DATABASE INITIALIZATION & PERSISTENCE
+       ========================================================================= */
+    function initDatabase() {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed.topics)) appState.topics = parsed.topics;
+          if (Array.isArray(parsed.subjects) && parsed.subjects.length > 0) {
+            appState.subjects = parsed.subjects;
+          }
+          return;
+        } catch (e) {
+          console.error("Database load error:", e);
+        }
+      }
+
+      // Initial realistic sample data
+      const today = getTodayDMY();
+      const minusDays = (days) => {
+        const d = parseDMY(today);
+        d.setUTCDate(d.getUTCDate() - days);
+        return formatToDMY(d);
+      };
+
+      appState.topics = [
+        {
+          id: 'topic-1',
+          date: minusDays(8), // +8d is due TODAY
+          subject: 'Polity',
+          title: 'Emergency Provisions & Articles 352-360',
+          notes: 'Parliamentary approval timeframes and effects on fundamental rights.',
+          completedRevisions: { 2: true, 4: true, 8: false, 16: false, 32: false },
+          extraBoosters: [],
+          createdAt: Date.now() - 691200000
+        },
+        {
+          id: 'topic-2',
+          date: minusDays(4), // +4d is due TODAY
+          subject: 'Economics',
+          title: 'Monetary Policy Corridor: Repo, SDF & MSF',
+          notes: 'Liquidity adjustment mechanics and inflation targeting.',
+          completedRevisions: { 2: true, 4: false, 8: false, 16: false, 32: false },
+          extraBoosters: [],
+          createdAt: Date.now() - 345600000
+        },
+        {
+          id: 'topic-3',
+          date: minusDays(18), // +16d was due 2 days ago -> OVERDUE
+          subject: 'History',
+          title: 'Revolt of 1857: Centers & Key Leaders',
+          notes: 'Delhi, Lucknow, Kanpur, Jhansi leadership and impact.',
+          completedRevisions: { 2: true, 4: true, 8: true, 16: false, 32: false },
+          extraBoosters: [],
+          createdAt: Date.now() - 1555200000
+        },
+        {
+          id: 'topic-4',
+          date: today, // Studied today
+          subject: 'Mathematics',
+          title: 'Calculus: Integration by Parts & Partial Fractions',
+          notes: 'ILATE rule and repeated quadratic terms.',
+          completedRevisions: { 2: false, 4: false, 8: false, 16: false, 32: false },
+          extraBoosters: [],
+          createdAt: Date.now()
+        }
+      ];
+
+      saveDatabase();
+    }
+
+    function saveDatabase() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        topics: appState.topics,
+        subjects: appState.subjects
+      }));
+      renderSubjectFilters();
+      populateSubjectDropdowns();
+      updateDashboardMetrics();
+    }
+
+    /* =========================================================================
+       SUBJECT MANAGEMENT LOGIC (ADD & DELETE)
+       ========================================================================= */
+    function getSubjectColorMeta(subjectName) {
+      const found = appState.subjects.find(s => s.name.toLowerCase() === (subjectName || '').toLowerCase());
+      const colorKey = found ? found.color : 'indigo';
+      return COLOR_PALETTES[colorKey] || COLOR_PALETTES['indigo'];
+    }
+
+    function openManageSubjectsModal() {
+      renderManageSubjectsList();
+      const modal = document.getElementById('modalManageSubjects');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeManageSubjectsModal() {
+      const modal = document.getElementById('modalManageSubjects');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function renderManageSubjectsList() {
+      const container = document.getElementById('manageSubjectsList');
+      container.innerHTML = '';
+
+      appState.subjects.forEach(sub => {
+        // Count active topics using this subject
+        const count = appState.topics.filter(t => t.subject === sub.name).length;
+        const colorMeta = COLOR_PALETTES[sub.color] || COLOR_PALETTES['indigo'];
+
+        const row = document.createElement('div');
+        row.className = 'p-2.5 rounded-xl bg-darkcard border border-darkborder flex items-center justify-between text-xs';
+
+        const isDefault = sub.name.toLowerCase() === 'general';
+
+        row.innerHTML = `
+          <div class="flex items-center gap-2.5">
+            <span class="w-3 h-3 rounded-full ${colorMeta.dot}"></span>
+            <span class="font-bold text-white">${escapeHtml(sub.name)}</span>
+            <span class="text-[11px] text-slate-400 font-mono-num">(${count} topics)</span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            ${isDefault ? `
+              <span class="text-[10px] text-slate-500 italic px-2 py-0.5">Default Subject</span>
+            ` : `
+              <button onclick="handleDeleteSubject('${sub.id}', '${escapeHtml(sub.name)}')" class="px-2 py-1 rounded-lg bg-rose-950/40 hover:bg-rose-900 text-rose-300 border border-rose-800/40 transition">
+                Delete
+              </button>
+            `}
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function handleAddNewSubject(event) {
+      event.preventDefault();
+      const input = document.getElementById('newSubjectName');
+      const name = input.value.trim();
+      const color = document.getElementById('newSubjectColor').value;
+
+      if (!name) return;
+
+      const exists = appState.subjects.some(s => s.name.toLowerCase() === name.toLowerCase());
+      if (exists) {
+        showToast('A subject with this name already exists.', false);
+        return;
+      }
+
+      appState.subjects.push({
+        id: 'sub_' + Date.now(),
+        name: name,
+        color: color
+      });
+
+      input.value = '';
+      saveDatabase();
+      renderManageSubjectsList();
+      showToast(`Subject "${name}" added!`);
+      refreshActiveView();
+    }
+
+    function handleDeleteSubject(subjectId, subjectName) {
+      if (subjectName.toLowerCase() === 'general') {
+        showToast('The General subject cannot be deleted.', false);
+        return;
+      }
+
+      // Reassign any topics with this subject to General to prevent orphaned records
+      let reassignedCount = 0;
+      appState.topics.forEach(t => {
+        if (t.subject === subjectName) {
+          t.subject = 'General';
+          reassignedCount++;
+        }
+      });
+
+      // Filter out deleted subject
+      appState.subjects = appState.subjects.filter(s => s.id !== subjectId);
+
+      // If active filter was the deleted subject, reset to ALL
+      if (appState.activeSubjectFilter === subjectName) {
+        appState.activeSubjectFilter = 'ALL';
+      }
+
+      saveDatabase();
+      renderManageSubjectsList();
+      refreshActiveView();
+
+      showToast(`Deleted "${subjectName}". ${reassignedCount > 0 ? `Reassigned ${reassignedCount} topics to General.` : ''}`);
+    }
+
+    function populateSubjectDropdowns() {
+      const addSelect = document.getElementById('addSubjectSelect');
+      const editSelect = document.getElementById('editSubjectSelect');
+
+      const optionsHtml = appState.subjects.map(s => `
+        <option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>
+      `).join('');
+
+      if (addSelect) addSelect.innerHTML = optionsHtml;
+      if (editSelect) editSelect.innerHTML = optionsHtml;
+    }
+
+    function renderSubjectFilters() {
+      const container = document.getElementById('subjectFilterContainer');
+      const allBtn = document.getElementById('filterBtnAll');
+      container.innerHTML = '';
+      container.appendChild(allBtn);
+
+      appState.subjects.forEach(sub => {
+        const btn = document.createElement('button');
+        const isActive = (appState.activeSubjectFilter === sub.name);
+        btn.onclick = () => setSubjectFilter(sub.name);
+        btn.className = `px-2.5 py-1 rounded-lg font-medium transition ${isActive ? 'bg-indigo-600 text-white' : 'bg-darkcard text-slate-400 hover:text-white border border-darkborder'}`;
+        btn.textContent = sub.name;
+        container.appendChild(btn);
+      });
+
+      if (appState.activeSubjectFilter === 'ALL') {
+        allBtn.className = 'px-2.5 py-1 rounded-lg bg-indigo-600 text-white font-medium';
+      } else {
+        allBtn.className = 'px-2.5 py-1 rounded-lg bg-darkcard text-slate-400 hover:text-white border border-darkborder font-medium';
+      }
+    }
+
+    function setSubjectFilter(subjectName) {
+      appState.activeSubjectFilter = subjectName;
+      renderSubjectFilters();
+      refreshActiveView();
+      showToast(subjectName === 'ALL' ? 'Showing all subjects' : `Filtered: ${subjectName}`);
+    }
+
+    /* =========================================================================
+       REPETITION SCHEDULER & RETENTION INDEX BUILDER
+       ========================================================================= */
+    function buildRepetitionIndex() {
+      const index = {};
+      const ensureKey = (dmy) => {
+        if (!index[dmy]) {
+          index[dmy] = { originals: [], revisions: [] };
+        }
+      };
+
+      appState.topics.forEach(topic => {
+        if (appState.activeSubjectFilter !== 'ALL' && topic.subject !== appState.activeSubjectFilter) {
+          return;
+        }
+
+        // Original study checkpoint
+        ensureKey(topic.date);
+        index[topic.date].originals.push(topic);
+
+        // Core 5 Intervals: +2, +4, +8, +16, +32 days
+        INTERVALS.forEach(interval => {
+          const revDate = addDaysToDMY(topic.date, interval);
+          ensureKey(revDate);
+          const isDone = !!(topic.completedRevisions && topic.completedRevisions[interval]);
+          const status = calculateRetentionStatus(revDate, isDone);
+
+          index[revDate].revisions.push({
+            topicId: topic.id,
+            topicTitle: topic.title,
+            topicNotes: topic.notes,
+            subject: topic.subject,
+            originalDate: topic.date,
+            interval: interval,
+            isBooster: false,
+            isDone: isDone,
+            status: status,
+            targetDate: revDate
+          });
+        });
+
+        // Extra Boosters (Adaptive Leitner resets on "Hard")
+        if (topic.extraBoosters && Array.isArray(topic.extraBoosters)) {
+          topic.extraBoosters.forEach((booster, bIdx) => {
+            ensureKey(booster.targetDate);
+            const status = calculateRetentionStatus(booster.targetDate, booster.isDone);
+            index[booster.targetDate].revisions.push({
+              topicId: topic.id,
+              topicTitle: topic.title,
+              topicNotes: topic.notes,
+              subject: topic.subject,
+              originalDate: topic.date,
+              interval: booster.label || '+Booster',
+              isBooster: true,
+              boosterIndex: bIdx,
+              isDone: booster.isDone,
+              status: status,
+              targetDate: booster.targetDate
+            });
+          });
+        }
+      });
+
+      return index;
+    }
+
+    function calculateRetentionStatus(targetDateDMY, isDone) {
+      if (isDone) return 'completed';
+      const today = getTodayDMY();
+      const comp = compareDMY(targetDateDMY, today);
+      if (comp < 0) return 'overdue';
+      if (comp === 0) return 'today';
+      return 'upcoming';
+    }
+
+    /* =========================================================================
+       METRICS & STREAK CALCULATION
+       ========================================================================= */
+    function updateDashboardMetrics() {
+      const todayDMY = getTodayDMY();
+      let dueToday = 0;
+      let totalCompleted = 0;
+      let totalScheduledToDate = 0;
+      let overdueCount = 0;
+
+      appState.topics.forEach(topic => {
+        INTERVALS.forEach(intVal => {
+          const revDate = addDaysToDMY(topic.date, intVal);
+          const isDone = !!(topic.completedRevisions && topic.completedRevisions[intVal]);
+          const comp = compareDMY(revDate, todayDMY);
+
+          if (isDone) totalCompleted++;
+
+          if (comp <= 0) {
+            totalScheduledToDate++;
+            if (!isDone && comp === 0) dueToday++;
+            if (!isDone && comp < 0) overdueCount++;
+          }
+        });
+
+        if (topic.extraBoosters) {
+          topic.extraBoosters.forEach(b => {
+            if (b.isDone) totalCompleted++;
+            const comp = compareDMY(b.targetDate, todayDMY);
+            if (comp <= 0) {
+              totalScheduledToDate++;
+              if (!b.isDone && comp === 0) dueToday++;
+              if (!b.isDone && comp < 0) overdueCount++;
+            }
+          });
+        }
+      });
+
+      const adherence = totalScheduledToDate > 0 ? Math.round((totalCompleted / totalScheduledToDate) * 100) : 100;
+      const streak = calculateStreak();
+
+      document.getElementById('metricStreak').textContent = streak;
+      document.getElementById('metricAdherence').textContent = `${adherence}%`;
+      document.getElementById('metricDueToday').textContent = dueToday;
+      document.getElementById('metricOverdue').textContent = overdueCount;
+
+      const badge = document.getElementById('agendaOverdueBadge');
+      if (badge) badge.textContent = overdueCount;
+    }
+
+    function calculateStreak() {
+      const completedDates = new Set();
+
+      appState.topics.forEach(t => {
+        INTERVALS.forEach(inv => {
+          if (t.completedRevisions && t.completedRevisions[inv]) {
+            completedDates.add(addDaysToDMY(t.date, inv));
+          }
+        });
+        if (t.extraBoosters) {
+          t.extraBoosters.forEach(b => {
+            if (b.isDone) completedDates.add(b.targetDate);
+          });
+        }
+      });
+
+      let currentStreak = 0;
+      let checkCursor = new Date();
+      const todayStr = formatToDMY(new Date(Date.UTC(checkCursor.getFullYear(), checkCursor.getMonth(), checkCursor.getDate())));
+
+      if (!completedDates.has(todayStr)) {
+        checkCursor.setDate(checkCursor.getDate() - 1);
+      }
+
+      while (true) {
+        const dmy = formatToDMY(new Date(Date.UTC(checkCursor.getFullYear(), checkCursor.getMonth(), checkCursor.getDate())));
+        if (completedDates.has(dmy)) {
+          currentStreak++;
+          checkCursor.setDate(checkCursor.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+
+      return currentStreak;
+    }
+
+    /* =========================================================================
+       CALENDAR RENDERER
+       ========================================================================= */
+    function renderCalendar() {
+      const container = document.getElementById('calendarGrid');
+      container.innerHTML = '';
+
+      const monthNames = [
+        "January", "February", "March", "April", "May", "June",
+        "July", "August", "September", "October", "November", "December"
+      ];
+
+      const year = appState.currentCalendarDate.getFullYear();
+      const month = appState.currentCalendarDate.getMonth();
+
+      document.getElementById('calendarTitleMonthYear').textContent = `${monthNames[month]} ${year}`;
+
+      const firstDayOfMonth = new Date(year, month, 1);
+      let startDay = firstDayOfMonth.getDay() - 1;
+      if (startDay === -1) startDay = 6;
+
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+      const repIndex = buildRepetitionIndex();
+      const todayDMY = getTodayDMY();
+
+      // Previous Month Overflow
+      for (let i = startDay - 1; i >= 0; i--) {
+        const dNum = daysInPrevMonth - i;
+        const dObj = new Date(Date.UTC(year, month - 1, dNum));
+        const dmy = formatToDMY(dObj);
+        container.appendChild(createCalendarCell(dNum, dmy, true, repIndex[dmy], false));
+      }
+
+      // Current Month Days
+      for (let dNum = 1; dNum <= daysInMonth; dNum++) {
+        const dObj = new Date(Date.UTC(year, month, dNum));
+        const dmy = formatToDMY(dObj);
+        const isToday = (dmy === todayDMY);
+        container.appendChild(createCalendarCell(dNum, dmy, false, repIndex[dmy], isToday));
+      }
+
+      // Next Month Trailing Padding
+      const totalCells = startDay + daysInMonth;
+      const trailing = (totalCells % 7 === 0) ? 0 : 7 - (totalCells % 7);
+      for (let dNum = 1; dNum <= trailing; dNum++) {
+        const dObj = new Date(Date.UTC(year, month + 1, dNum));
+        const dmy = formatToDMY(dObj);
+        container.appendChild(createCalendarCell(dNum, dmy, true, repIndex[dmy], false));
+      }
+    }
+
+    function createCalendarCell(dayNumber, dmyStr, isOtherMonth, dayData, isToday) {
+      const cell = document.createElement('div');
+      
+      let baseBg = isOtherMonth ? 'bg-[#08080c]/60 text-slate-600' : 'bg-darkpanel text-slate-300';
+      if (isToday) {
+        baseBg = 'bg-darkcard border-2 border-indigo-500 shadow-lg';
+      }
+
+      let glowClass = '';
+      if (dayData && dayData.revisions.length > 0) {
+        const hasOverdue = dayData.revisions.some(r => r.status === 'overdue');
+        const hasTodayDue = dayData.revisions.some(r => r.status === 'today');
+        if (hasOverdue) glowClass = 'pulse-overdue';
+        else if (hasTodayDue) glowClass = 'pulse-today';
+      }
+
+      cell.className = `${baseBg} ${glowClass} min-h-[115px] p-2 flex flex-col justify-between cursor-pointer hover:bg-darkhover transition relative group rounded-sm`;
+      cell.onclick = () => openDayInspector(dmyStr);
+
+      // Header row
+      const header = document.createElement('div');
+      header.className = 'flex items-center justify-between pointer-events-none';
+
+      const numSpan = document.createElement('span');
+      numSpan.className = `text-xs font-bold font-mono-num ${isToday ? 'px-2 py-0.5 rounded-md bg-indigo-600 text-white' : (isOtherMonth ? 'text-slate-600' : 'text-slate-300')}`;
+      numSpan.textContent = dayNumber;
+      header.appendChild(numSpan);
+
+      const addHint = document.createElement('span');
+      addHint.className = 'opacity-0 group-hover:opacity-100 text-indigo-400 font-bold text-xs transition';
+      addHint.textContent = '+';
+      header.appendChild(addHint);
+
+      cell.appendChild(header);
+
+      // Badges stack
+      const badgeStack = document.createElement('div');
+      badgeStack.className = 'space-y-1 mt-1 flex-1 overflow-hidden pointer-events-none';
+
+      if (dayData) {
+        if (dayData.originals && dayData.originals.length > 0) {
+          dayData.originals.forEach(topic => {
+            const badge = document.createElement('div');
+            const colorMeta = getSubjectColorMeta(topic.subject);
+            badge.className = `text-[10px] truncate px-1.5 py-0.5 rounded ${colorMeta.bg} ${colorMeta.border} ${colorMeta.text} border font-medium flex items-center gap-1`;
+            badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full ${colorMeta.dot} flex-shrink-0"></span><span class="truncate">${escapeHtml(topic.title)}</span>`;
+            badgeStack.appendChild(badge);
+          });
+        }
+
+        if (dayData.revisions && dayData.revisions.length > 0) {
+          dayData.revisions.forEach(rev => {
+            const badge = document.createElement('div');
+            let colorCls = '';
+
+            if (rev.status === 'completed') {
+              colorCls = 'bg-emerald-950/70 border-emerald-600/40 text-emerald-300 line-through opacity-70';
+            } else if (rev.status === 'overdue') {
+              colorCls = 'bg-rose-950/90 border-rose-600 text-rose-200 font-semibold';
+            } else if (rev.status === 'today') {
+              colorCls = 'bg-amber-950/90 border-amber-600 text-amber-200 font-semibold';
+            } else {
+              colorCls = 'bg-indigo-950/60 border-indigo-700/40 text-indigo-300';
+            }
+
+            badge.className = `text-[10px] truncate px-1.5 py-0.5 rounded border ${colorCls} flex items-center justify-between gap-1`;
+            badge.innerHTML = `
+              <span class="truncate">${rev.isBooster ? '⚡' : '+'}${rev.interval}${typeof rev.interval === 'number' ? 'd' : ''} ${escapeHtml(rev.topicTitle)}</span>
+              ${rev.status === 'completed' ? '<span class="text-emerald-400 text-[9px] font-bold">✓</span>' : ''}
+            `;
+            badgeStack.appendChild(badge);
+          });
+        }
+      }
+
+      cell.appendChild(badgeStack);
+      return cell;
+    }
+
+    function shiftMonth(delta) {
+      appState.currentCalendarDate.setMonth(appState.currentCalendarDate.getMonth() + delta);
+      renderCalendar();
+    }
+
+    function jumpToToday() {
+      appState.currentCalendarDate = new Date();
+      renderCalendar();
+      showToast("Jumped to Today");
+    }
+
+    /* =========================================================================
+       TODAY'S FOCUS & AGENDA VIEW
+       ========================================================================= */
+    function renderAgendaView() {
+      const todayDMY = getTodayDMY();
+      document.getElementById('agendaDateDisplay').textContent = todayDMY;
+
+      const index = buildRepetitionIndex();
+      const todayData = index[todayDMY] || { originals: [], revisions: [] };
+
+      // Revisions Due Today
+      const dueContainer = document.getElementById('agendaDueTodayList');
+      dueContainer.innerHTML = '';
+
+      if (todayData.revisions.length === 0) {
+        dueContainer.innerHTML = `
+          <div class="p-8 text-center border border-dashed border-darkborder rounded-2xl">
+            <div class="text-2xl mb-1">🎉</div>
+            <p class="text-xs text-slate-300 font-medium">All caught up! No spaced revisions due today.</p>
+            <p class="text-[11px] text-slate-500 mt-1">Log a new topic or review previous study notes.</p>
+          </div>
+        `;
+      } else {
+        todayData.revisions.forEach(rev => {
+          const item = document.createElement('div');
+          const isDone = rev.status === 'completed';
+          const colorMeta = getSubjectColorMeta(rev.subject);
+
+          item.className = `p-3.5 rounded-xl border ${isDone ? 'bg-emerald-950/20 border-emerald-500/40' : 'bg-darkcard border-amber-500/40'} flex flex-col sm:flex-row sm:items-center justify-between gap-3`;
+          
+          item.innerHTML = `
+            <div class="flex items-start gap-3">
+              <input type="checkbox" ${isDone ? 'checked' : ''} 
+                     onchange="toggleRevision('${rev.topicId}', '${rev.interval}', ${rev.isBooster}, ${rev.boosterIndex ?? null})"
+                     class="w-5 h-5 mt-0.5 rounded accent-emerald-500 cursor-pointer bg-darkpanel border-darkborder flex-shrink-0" />
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md ${isDone ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">
+                    ${rev.isBooster ? '⚡ Booster' : `+${rev.interval}d Checkpoint`}
+                  </span>
+                  <span class="text-xs px-2 py-0.5 rounded-md ${colorMeta.bg} ${colorMeta.text} border ${colorMeta.border} font-semibold">
+                    ${escapeHtml(rev.subject)}
+                  </span>
+                  <span class="text-sm font-semibold ${isDone ? 'line-through text-slate-400' : 'text-white'}">
+                    ${escapeHtml(rev.topicTitle)}
+                  </span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-1">${escapeHtml(rev.topicNotes || 'No notes.')}</p>
+                <span class="text-[10px] text-slate-500 font-mono-num">Learned: ${rev.originalDate}</span>
+              </div>
+            </div>
+
+            <!-- Leitner Booster Controls -->
+            <div class="flex items-center gap-2 self-end sm:self-center">
+              <button onclick="markAdaptiveDifficulty('${rev.topicId}', '${rev.interval}', 'HARD')" title="Reset/Add +2d booster if topic felt difficult"
+                      class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/40 transition">
+                Hard (+2d Reset)
+              </button>
+              <button onclick="markAdaptiveDifficulty('${rev.topicId}', '${rev.interval}', 'EASY')" title="Mark complete"
+                      class="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/40 transition">
+                Mastered ✓
+              </button>
+            </div>
+          `;
+          dueContainer.appendChild(item);
+        });
+      }
+
+      // Originals Studied Today
+      const learnedContainer = document.getElementById('agendaLearnedTodayList');
+      learnedContainer.innerHTML = '';
+      if (todayData.originals.length === 0) {
+        learnedContainer.innerHTML = `<p class="text-xs text-slate-500 italic py-2">No new material recorded as first studied today yet.</p>`;
+      } else {
+        todayData.originals.forEach(item => {
+          const div = document.createElement('div');
+          const colorMeta = getSubjectColorMeta(item.subject);
+          div.className = 'p-3 rounded-xl bg-darkcard border border-darkborder flex items-center justify-between text-xs';
+          div.innerHTML = `
+            <div>
+              <span class="font-bold text-white">${escapeHtml(item.title)}</span>
+              <span class="ml-2 text-[10px] px-2 py-0.5 rounded ${colorMeta.bg} ${colorMeta.text} border ${colorMeta.border}">${escapeHtml(item.subject)}</span>
+              <p class="text-[11px] text-slate-400 mt-0.5">${escapeHtml(item.notes || '')}</p>
+            </div>
+            <button onclick="openEditTopicModal('${item.id}')" class="px-2.5 py-1 rounded-lg bg-darkpanel hover:bg-slate-700 text-slate-200">
+              Edit
+            </button>
+          `;
+          learnedContainer.appendChild(div);
+        });
+      }
+
+      // Overdue Retention Warning List
+      const overdueContainer = document.getElementById('agendaOverdueList');
+      overdueContainer.innerHTML = '';
+      const allOverdue = [];
+
+      Object.keys(index).forEach(dmy => {
+        if (compareDMY(dmy, todayDMY) < 0) {
+          index[dmy].revisions.forEach(r => {
+            if (r.status === 'overdue') allOverdue.push(r);
+          });
+        }
+      });
+
+      if (allOverdue.length === 0) {
+        overdueContainer.innerHTML = `<p class="text-xs text-slate-500 py-1.5">No overdue checkpoints! All on schedule.</p>`;
+      } else {
+        allOverdue.forEach(r => {
+          const row = document.createElement('div');
+          row.className = 'p-2.5 bg-darkcard border border-rose-900/50 rounded-xl flex items-center justify-between text-xs gap-2';
+          row.innerHTML = `
+            <div class="truncate">
+              <span class="font-bold text-rose-400 font-mono-num">+${r.interval}d</span>
+              <span class="text-slate-200 ml-1.5 font-medium truncate">${escapeHtml(r.topicTitle)}</span>
+              <span class="block text-[10px] text-slate-500 font-mono-num">Was due: ${r.targetDate}</span>
+            </div>
+            <button onclick="toggleRevision('${r.topicId}', '${r.interval}', ${r.isBooster}, ${r.boosterIndex ?? null})" 
+                    class="px-2 py-1 text-[11px] font-bold rounded-lg bg-rose-600/30 text-rose-300 hover:bg-emerald-600 hover:text-white transition flex-shrink-0">
+              Tick Done
+            </button>
+          `;
+          overdueContainer.appendChild(row);
+        });
+      }
+
+      // Next 7 Days Forecast
+      const upcomingContainer = document.getElementById('agendaUpcomingList');
+      upcomingContainer.innerHTML = '';
+      const forecastList = [];
+      const baseToday = parseDMY(todayDMY);
+
+      for (let i = 1; i <= 7; i++) {
+        const nextDay = new Date(baseToday);
+        nextDay.setUTCDate(baseToday.getUTCDate() + i);
+        const dmy = formatToDMY(nextDay);
+        if (index[dmy] && index[dmy].revisions.length > 0) {
+          index[dmy].revisions.forEach(r => forecastList.push(r));
+        }
+      }
+
+      if (forecastList.length === 0) {
+        upcomingContainer.innerHTML = `<p class="text-xs text-slate-500 py-1.5">No revisions scheduled for next 7 days.</p>`;
+      } else {
+        forecastList.forEach(r => {
+          const card = document.createElement('div');
+          card.className = 'p-2.5 bg-darkcard border border-darkborder rounded-xl flex items-center justify-between text-xs';
+          card.innerHTML = `
+            <div class="truncate">
+              <span class="font-bold text-indigo-400 font-mono-num">+${r.interval}d</span>
+              <span class="text-slate-300 ml-1.5 truncate">${escapeHtml(r.topicTitle)}</span>
+            </div>
+            <span class="text-[11px] text-slate-400 font-mono-num">${r.targetDate}</span>
+          `;
+          upcomingContainer.appendChild(card);
+        });
+      }
+    }
+
+    /* =========================================================================
+       REPOSITORY TABLE VIEW
+       ========================================================================= */
+    function renderTopicsTable() {
+      const tbody = document.getElementById('repoTableBody');
+      const query = (document.getElementById('repoSearchInput').value || '').toLowerCase();
+      tbody.innerHTML = '';
+
+      const filtered = appState.topics.filter(t => {
+        const matchSub = (appState.activeSubjectFilter === 'ALL' || t.subject === appState.activeSubjectFilter);
+        const matchText = t.title.toLowerCase().includes(query) ||
+                          (t.notes && t.notes.toLowerCase().includes(query)) ||
+                          t.subject.toLowerCase().includes(query) ||
+                          t.date.includes(query);
+        return matchSub && matchText;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center py-8 text-slate-500">No matching topics in repository.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach(topic => {
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-darkcard/50 transition';
+        const colorMeta = getSubjectColorMeta(topic.subject);
+
+        let intervalBoxesHtml = '';
+        INTERVALS.forEach(intVal => {
+          const revDate = addDaysToDMY(topic.date, intVal);
+          const isDone = !!(topic.completedRevisions && topic.completedRevisions[intVal]);
+          const status = calculateRetentionStatus(revDate, isDone);
+
+          let tickColor = 'accent-emerald-500';
+          let dateColor = 'text-slate-500';
+          if (status === 'overdue') dateColor = 'text-rose-400 font-bold';
+          if (status === 'today') dateColor = 'text-amber-400 font-bold';
+          if (status === 'completed') dateColor = 'text-emerald-400';
+
+          intervalBoxesHtml += `
+            <td class="py-3 px-2 text-center">
+              <div class="inline-flex flex-col items-center">
+                <input type="checkbox" ${isDone ? 'checked' : ''} 
+                       onchange="toggleRevision('${topic.id}', ${intVal}, false)" 
+                       class="w-4 h-4 rounded ${tickColor} cursor-pointer bg-darkpanel border-darkborder" />
+                <span class="text-[10px] mt-1 font-mono-num ${dateColor}">${revDate.slice(0, 5)}</span>
+              </div>
+            </td>
+          `;
+        });
+
+        tr.innerHTML = `
+          <td class="py-3 px-3 font-mono-num font-semibold text-indigo-300 whitespace-nowrap">${topic.date}</td>
+          <td class="py-3 px-2">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold ${colorMeta.bg} ${colorMeta.text} border ${colorMeta.border}">
+              ${escapeHtml(topic.subject)}
+            </span>
+          </td>
+          <td class="py-3 px-3 max-w-sm">
+            <div class="font-bold text-white truncate">${escapeHtml(topic.title)}</div>
+            <div class="text-[11px] text-slate-400 truncate mt-0.5">${escapeHtml(topic.notes || 'No description notes')}</div>
+          </td>
+          ${intervalBoxesHtml}
+          <td class="py-3 px-3 text-right whitespace-nowrap">
+            <button onclick="openEditTopicModal('${topic.id}')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-darkcard hover:bg-slate-700 text-slate-200 border border-darkborder mr-1.5 transition">
+              Edit
+            </button>
+            <button onclick="deleteTopicDirectly('${topic.id}')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-rose-950/40 hover:bg-rose-900 text-rose-300 border border-rose-800/40 transition">
+              Delete
+            </button>
+          </td>
+        `;
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    /* =========================================================================
+       DAY INSPECTOR MODAL
+       ========================================================================= */
+    function openDayInspector(dmyStr) {
+      appState.inspectedDateStr = dmyStr;
+      document.getElementById('inspectorDateTitle').textContent = dmyStr;
+
+      const index = buildRepetitionIndex();
+      const dayData = index[dmyStr] || { originals: [], revisions: [] };
+
+      // Revisions Due
+      const revContainer = document.getElementById('inspectorRevisionsList');
+      revContainer.innerHTML = '';
+      if (dayData.revisions.length === 0) {
+        revContainer.innerHTML = `<p class="text-xs text-slate-500 italic py-2">No spaced revisions scheduled on this date.</p>`;
+      } else {
+        dayData.revisions.forEach(rev => {
+          const card = document.createElement('div');
+          const isDone = rev.status === 'completed';
+          const colorMeta = getSubjectColorMeta(rev.subject);
+
+          card.className = `p-3 rounded-xl border ${isDone ? 'bg-emerald-950/20 border-emerald-600/40' : 'bg-darkcard border-darkborder'} flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs`;
+
+          card.innerHTML = `
+            <div class="flex items-start gap-2.5">
+              <input type="checkbox" ${isDone ? 'checked' : ''} 
+                     onchange="toggleRevision('${rev.topicId}', '${rev.interval}', ${rev.isBooster}, ${rev.boosterIndex ?? null})"
+                     class="w-5 h-5 mt-0.5 rounded accent-emerald-500 cursor-pointer bg-darkpanel border-darkborder" />
+              <div>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <span class="font-bold px-2 py-0.5 rounded ${isDone ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}">
+                    ${rev.isBooster ? '⚡ Booster' : `+${rev.interval}d Checkpoint`}
+                  </span>
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${colorMeta.bg} ${colorMeta.text} border ${colorMeta.border}">${escapeHtml(rev.subject)}</span>
+                  <span class="font-bold text-white">${escapeHtml(rev.topicTitle)}</span>
+                </div>
+                <div class="text-[11px] text-slate-400 mt-1">${escapeHtml(rev.topicNotes || 'No notes.')}</div>
+                <span class="text-[10px] text-slate-500 font-mono-num">Orig date: ${rev.originalDate}</span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 self-end sm:self-center">
+              <button onclick="markAdaptiveDifficulty('${rev.topicId}', '${rev.interval}', 'HARD')" 
+                      class="px-2 py-1 text-[10px] font-bold rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-800/40">
+                Hard (+2d Reset)
+              </button>
+              <button onclick="openEditTopicModal('${rev.topicId}')" class="px-2 py-1 text-[10px] rounded-lg bg-darkpanel hover:bg-slate-700 text-slate-300 border border-darkborder">
+                Edit
+              </button>
+            </div>
+          `;
+          revContainer.appendChild(card);
+        });
+      }
+
+      // Originals Studied
+      const origContainer = document.getElementById('inspectorOriginalsList');
+      origContainer.innerHTML = '';
+      if (dayData.originals.length === 0) {
+        origContainer.innerHTML = `<p class="text-xs text-slate-500 italic py-2">No new material recorded on this date.</p>`;
+      } else {
+        dayData.originals.forEach(item => {
+          const div = document.createElement('div');
+          const colorMeta = getSubjectColorMeta(item.subject);
+          div.className = 'p-3 rounded-xl bg-darkcard border border-darkborder flex items-center justify-between text-xs';
+          div.innerHTML = `
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-bold text-white">${escapeHtml(item.title)}</span>
+                <span class="text-[10px] px-2 py-0.5 rounded ${colorMeta.bg} ${colorMeta.text} border ${colorMeta.border}">${escapeHtml(item.subject)}</span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-1">${escapeHtml(item.notes || 'No description notes.')}</p>
+            </div>
+            <button onclick="openEditTopicModal('${item.id}')" class="px-2.5 py-1 text-xs font-semibold rounded-lg bg-darkpanel hover:bg-slate-700 text-slate-200 border border-darkborder">
+              Edit
+            </button>
+          `;
+          origContainer.appendChild(div);
+        });
+      }
+
+      const modal = document.getElementById('modalDayInspector');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeDayInspectorModal() {
+      const modal = document.getElementById('modalDayInspector');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function logTopicForInspectedDate() {
+      const dateStr = appState.inspectedDateStr;
+      closeDayInspectorModal();
+      openNewTopicModal(dateStr);
+    }
+
+    /* =========================================================================
+       LEITNER ADAPTIVE SYSTEM & CHECKPOINT TOGGLES
+       ========================================================================= */
+    function markAdaptiveDifficulty(topicId, intervalKey, difficulty) {
+      const topic = appState.topics.find(t => t.id === topicId);
+      if (!topic) return;
+
+      if (!topic.completedRevisions) topic.completedRevisions = {};
+      if (!topic.extraBoosters) topic.extraBoosters = [];
+
+      if (difficulty === 'EASY') {
+        topic.completedRevisions[intervalKey] = true;
+        showToast(`Topic marked Mastered!`);
+      } else if (difficulty === 'HARD') {
+        topic.completedRevisions[intervalKey] = true;
+        const boosterDate = addDaysToDMY(getTodayDMY(), 2);
+        topic.extraBoosters.push({
+          targetDate: boosterDate,
+          label: '+2d Booster',
+          isDone: false,
+          createdDate: getTodayDMY()
+        });
+        showToast(`Hard rating logged: Added a +2d booster on ${boosterDate}!`);
+      }
+
+      saveDatabase();
+      refreshActiveView();
+      if (appState.inspectedDateStr && !document.getElementById('modalDayInspector').classList.contains('hidden')) {
+        openDayInspector(appState.inspectedDateStr);
+      }
+    }
+
+    function toggleRevision(topicId, intervalKey, isBooster, boosterIndex = null) {
+      const topic = appState.topics.find(t => t.id === topicId);
+      if (!topic) return;
+
+      if (isBooster && boosterIndex !== null && topic.extraBoosters[boosterIndex]) {
+        topic.extraBoosters[boosterIndex].isDone = !topic.extraBoosters[boosterIndex].isDone;
+      } else {
+        if (!topic.completedRevisions) topic.completedRevisions = {};
+        topic.completedRevisions[intervalKey] = !topic.completedRevisions[intervalKey];
+      }
+
+      saveDatabase();
+      showToast('Revision status updated.');
+      refreshActiveView();
+
+      if (appState.inspectedDateStr && !document.getElementById('modalDayInspector').classList.contains('hidden')) {
+        openDayInspector(appState.inspectedDateStr);
+      }
+    }
+
+    /* =========================================================================
+       ADD / EDIT / DELETE MODALS FOR TOPICS
+       ========================================================================= */
+    function openNewTopicModal(prefillDateStr = null) {
+      const targetDate = prefillDateStr ? parseDMY(prefillDateStr) : new Date();
+
+      document.getElementById('addDay').value = targetDate.getUTCDate();
+      document.getElementById('addMonth').value = targetDate.getUTCMonth() + 1;
+      document.getElementById('addYear').value = targetDate.getUTCFullYear();
+      document.getElementById('addTitle').value = '';
+      document.getElementById('addNotes').value = '';
+
+      populateSubjectDropdowns();
+
+      const modal = document.getElementById('modalAddTopic');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeAddTopicModal() {
+      const modal = document.getElementById('modalAddTopic');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function handleSaveNewTopic(event) {
+      event.preventDefault();
+      const d = parseInt(document.getElementById('addDay').value, 10);
+      const m = parseInt(document.getElementById('addMonth').value, 10);
+      const y = parseInt(document.getElementById('addYear').value, 10);
+      const title = document.getElementById('addTitle').value.trim();
+      const notes = document.getElementById('addNotes').value.trim();
+      const subject = document.getElementById('addSubjectSelect').value || 'General';
+
+      if (!d || !m || !y || !title) return;
+
+      const formattedDate = formatToDMY(new Date(Date.UTC(y, m - 1, d)));
+      const newTopic = {
+        id: 'top_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
+        date: formattedDate,
+        subject: subject,
+        title: title,
+        notes: notes,
+        completedRevisions: { 2: false, 4: false, 8: false, 16: false, 32: false },
+        extraBoosters: [],
+        createdAt: Date.now()
+      };
+
+      appState.topics.unshift(newTopic);
+      saveDatabase();
+      closeAddTopicModal();
+      showToast(`Topic scheduled for +2, +4, +8, +16, and +32 days!`);
+      refreshActiveView();
+    }
+
+    function openEditTopicModal(topicId) {
+      const topic = appState.topics.find(t => t.id === topicId);
+      if (!topic) return;
+
+      populateSubjectDropdowns();
+
+      const dateObj = parseDMY(topic.date);
+      document.getElementById('editTopicId').value = topic.id;
+      document.getElementById('editDay').value = dateObj.getUTCDate();
+      document.getElementById('editMonth').value = dateObj.getUTCMonth() + 1;
+      document.getElementById('editYear').value = dateObj.getUTCFullYear();
+      document.getElementById('editSubjectSelect').value = topic.subject;
+      document.getElementById('editTitle').value = topic.title;
+      document.getElementById('editNotes').value = topic.notes || '';
+
+      const modal = document.getElementById('modalEditTopic');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeEditTopicModal() {
+      const modal = document.getElementById('modalEditTopic');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function handleSaveEditTopic(event) {
+      event.preventDefault();
+      const id = document.getElementById('editTopicId').value;
+      const topic = appState.topics.find(t => t.id === id);
+      if (!topic) return;
+
+      const d = parseInt(document.getElementById('editDay').value, 10);
+      const m = parseInt(document.getElementById('editMonth').value, 10);
+      const y = parseInt(document.getElementById('editYear').value, 10);
+      const subject = document.getElementById('editSubjectSelect').value || 'General';
+      const title = document.getElementById('editTitle').value.trim();
+      const notes = document.getElementById('editNotes').value.trim();
+
+      topic.date = formatToDMY(new Date(Date.UTC(y, m - 1, d)));
+      topic.subject = subject;
+      topic.title = title;
+      topic.notes = notes;
+
+      saveDatabase();
+      closeEditTopicModal();
+      showToast('Topic updated successfully.');
+      refreshActiveView();
+      if (appState.inspectedDateStr && !document.getElementById('modalDayInspector').classList.contains('hidden')) {
+        openDayInspector(appState.inspectedDateStr);
+      }
+    }
+
+    function handleDeleteCurrentTopic() {
+      const id = document.getElementById('editTopicId').value;
+      deleteTopicDirectly(id);
+      closeEditTopicModal();
+    }
+
+    function deleteTopicDirectly(topicId) {
+      appState.topics = appState.topics.filter(t => t.id !== topicId);
+      saveDatabase();
+      showToast('Topic deleted.', false);
+      refreshActiveView();
+      if (appState.inspectedDateStr && !document.getElementById('modalDayInspector').classList.contains('hidden')) {
+        openDayInspector(appState.inspectedDateStr);
+      }
+    }
+
+    /* =========================================================================
+       DATA BACKUP & RESTORE (JSON)
+       ========================================================================= */
+    function openBackupModal() {
+      const modal = document.getElementById('modalBackup');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeBackupModal() {
+      const modal = document.getElementById('modalBackup');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    function exportJsonFile() {
+      const payload = {
+        app: "ChronoSprintPro",
+        version: "3.0",
+        exportDate: getTodayDMY(),
+        subjects: appState.subjects,
+        topics: appState.topics
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(payload, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `chronosprint_backup_${getTodayDMY().replace(/\//g, '-')}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast('Backup file exported!');
+    }
+
+    function handleImportFile(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (parsed && Array.isArray(parsed.topics)) {
+            appState.topics = parsed.topics;
+            if (Array.isArray(parsed.subjects) && parsed.subjects.length > 0) {
+              appState.subjects = parsed.subjects;
+            }
+            saveDatabase();
+            closeBackupModal();
+            refreshActiveView();
+            showToast('Backup restored successfully!');
+          } else {
+            showToast('Invalid backup file format.', false);
+          }
+        } catch (err) {
+          showToast('Failed to parse JSON file.', false);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    /* =========================================================================
+       PRINT DAILY AGENDA SHEET
+       ========================================================================= */
+    function printDailyAgendaSheet() {
+      const todayDMY = getTodayDMY();
+      const index = buildRepetitionIndex();
+      const todayData = index[todayDMY] || { originals: [], revisions: [] };
+
+      document.getElementById('printDateHeading').textContent = `DATE: ${todayDMY}`;
+
+      const printRevList = document.getElementById('printRevisionsList');
+      printRevList.innerHTML = '';
+
+      if (todayData.revisions.length === 0) {
+        printRevList.innerHTML = `<p style="font-size:12px; font-style:italic;">No revisions scheduled for today.</p>`;
+      } else {
+        todayData.revisions.forEach(r => {
+          const div = document.createElement('div');
+          div.style.cssText = "display: flex; align-items: baseline; margin-bottom: 8px; border-bottom: 1px dotted #ccc; padding-bottom: 4px;";
+          div.innerHTML = `
+            <span style="display:inline-block; width: 18px; height: 18px; border: 1.5px solid #000; margin-right: 10px; vertical-align: middle;"></span>
+            <div style="flex:1;">
+              <strong>[+${r.interval}${typeof r.interval === 'number' ? 'd' : ''}] ${escapeHtml(r.topicTitle)}</strong> 
+              <span style="font-size:11px; color:#444;">(${escapeHtml(r.subject)} • Learned: ${r.originalDate})</span>
+              ${r.topicNotes ? `<div style="font-size:11px; color:#333; margin-top:2px;">Notes: ${escapeHtml(r.topicNotes)}</div>` : ''}
+            </div>
+          `;
+          printRevList.appendChild(div);
+        });
+      }
+
+      const printLearnList = document.getElementById('printLearnedList');
+      printLearnList.innerHTML = '';
+      if (todayData.originals.length === 0) {
+        printLearnList.innerHTML = `<p style="font-size:12px; font-style:italic;">No new topics recorded yet for today.</p>`;
+      } else {
+        todayData.originals.forEach(item => {
+          const div = document.createElement('div');
+          div.style.cssText = "display: flex; align-items: baseline; margin-bottom: 8px; border-bottom: 1px dotted #ccc; padding-bottom: 4px;";
+          div.innerHTML = `
+            <span style="display:inline-block; width: 18px; height: 18px; border: 1.5px solid #000; margin-right: 10px; vertical-align: middle;"></span>
+            <div style="flex:1;">
+              <strong>${escapeHtml(item.title)}</strong> 
+              <span style="font-size:11px; color:#444;">(${escapeHtml(item.subject)})</span>
+              <div style="font-size:11px; color:#333; margin-top:2px;">${escapeHtml(item.notes || '')}</div>
+            </div>
+          `;
+          printLearnList.appendChild(div);
+        });
+      }
+
+      window.print();
+    }
+
+    /* =========================================================================
+       VIEW TOGGLING & KEYBOARD SHORTCUTS
+       ========================================================================= */
+    function switchView(viewName) {
+      appState.activeView = viewName;
+
+      document.getElementById('viewCalendar').classList.toggle('hidden', viewName !== 'calendar');
+      document.getElementById('viewAgenda').classList.toggle('hidden', viewName !== 'agenda');
+      document.getElementById('viewTopics').classList.toggle('hidden', viewName !== 'topics');
+
+      const tabs = [
+        { id: 'navTabCalendar', name: 'calendar' },
+        { id: 'navTabAgenda', name: 'agenda' },
+        { id: 'navTabTopics', name: 'topics' }
+      ];
+
+      tabs.forEach(t => {
+        const btn = document.getElementById(t.id);
+        if (t.name === viewName) {
+          btn.className = 'flex-1 md:flex-none px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white shadow-sm transition';
+        } else {
+          btn.className = 'flex-1 md:flex-none px-3.5 py-1.5 rounded-lg text-slate-400 hover:text-white transition';
+        }
+      });
+
+      refreshActiveView();
+    }
+
+    function refreshActiveView() {
+      updateDashboardMetrics();
+      if (appState.activeView === 'calendar') {
+        renderCalendar();
+      } else if (appState.activeView === 'agenda') {
+        renderAgendaView();
+      } else if (appState.activeView === 'topics') {
+        renderTopicsTable();
+      }
+    }
+
+    function openShortcutsModal() {
+      const modal = document.getElementById('modalShortcuts');
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+
+    function closeShortcutsModal() {
+      const modal = document.getElementById('modalShortcuts');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) {
+        if (e.key === 'Escape') document.activeElement.blur();
+        return;
+      }
+
+      if (e.key === 't' || e.key === 'T') {
+        jumpToToday();
+      } else if (e.key === 'n' || e.key === 'N') {
+        openNewTopicModal();
+      } else if (e.key === 'ArrowLeft') {
+        shiftMonth(-1);
+      } else if (e.key === 'ArrowRight') {
+        shiftMonth(1);
+      } else if (e.key === '?' || e.key === '/') {
+        openShortcutsModal();
+      } else if (e.key === 'Escape') {
+        closeAddTopicModal();
+        closeDayInspectorModal();
+        closeEditTopicModal();
+        closeBackupModal();
+        closeShortcutsModal();
+        closeManageSubjectsModal();
+      }
+    });
+
+    function showToast(msg, isSuccess = true) {
+      const toast = document.getElementById('toastNotification');
+      const text = document.getElementById('toastMessage');
+      const icon = document.getElementById('toastIcon');
+      text.textContent = msg;
+
+      icon.innerHTML = isSuccess
+        ? `<svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>`
+        : `<svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`;
+
+      toast.classList.remove('translate-y-24', 'opacity-0');
+      clearTimeout(window.__toastTimer);
+      window.__toastTimer = setTimeout(() => {
+        toast.classList.add('translate-y-24', 'opacity-0');
+      }, 2500);
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initDatabase();
+      renderSubjectFilters();
+      populateSubjectDropdowns();
+      updateDashboardMetrics();
+      renderCalendar();
+    });
+  </script>
+</body>
+</html>
